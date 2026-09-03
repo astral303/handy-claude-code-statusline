@@ -151,10 +151,21 @@ function Start-MuRefresh {
       Remove-Item -LiteralPath $MuLock -Recurse -Force -ErrorAction SilentlyContinue
       New-Item -ItemType Directory -Path $MuLock -ErrorAction Stop | Out-Null
     }
-    $pwsh = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
-    Start-Process -FilePath $pwsh -WindowStyle Hidden `
-      -ArgumentList '-NoProfile', '-NonInteractive', '-File', $PSCommandPath, '-Refresh'
-  } catch { }
+    $pwshPath = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+    if (-not $pwshPath -or -not $PSCommandPath) { throw 'host or script path unavailable' }
+    $spawn = @{
+      FilePath     = $pwshPath
+      ArgumentList = @('-NoProfile', '-NonInteractive', '-File', $PSCommandPath, '-Refresh')
+    }
+    # -WindowStyle exists only on Windows PowerShell hosts and throws on other
+    # editions, which would leave the lock held and the refresh never started.
+    if ($IsWindows) { $spawn['WindowStyle'] = 'Hidden' }
+    Start-Process @spawn
+  } catch {
+    # The refresh never started, so nothing was asked of /usage and the lock
+    # has no throttling to do. Release it rather than blocking the next render.
+    Remove-Item -LiteralPath $MuLock -Recurse -Force -ErrorAction SilentlyContinue
+  }
 }
 
 $muLabel = ''; $muPct = $null; $muStale = $false

@@ -201,21 +201,25 @@ Renders are read-stale:
 ## Tests
 
 ```sh
-sh test.sh
+sh test.sh                    # statusline.sh
+pwsh -NoProfile -File test.ps1   # statusline.ps1
 ```
 
-63 assertions, exit non-zero on failure. Each test runs against a throwaway
-`XDG_CACHE_HOME` and a stub `claude` on `PATH`, so no test reads a real cache
-or calls the usage endpoint. Cleanup removes only a directory matching the name
-it created.
+Both harnesses read the same corpus, `tests/render-cases.tsv`, so a case added
+there is covered on both platforms. Each exits non-zero on failure.
 
-Groups covered: segment rendering and omission, rate-limit windows, the
-per-model window, prompt-cache states, rounding at every midpoint, stale
-rendering, and the refresh, lock and cache-write paths.
+- The corpus holds 40 render cases: segment rendering and omission, rate-limit
+  windows, the per-model window, prompt-cache states, rounding at every
+  midpoint, and stale rendering. Its header documents the column format.
+- Cases marked `diff` require the two implementations to agree byte for byte,
+  escape sequences included. They are skipped, and reported as skipped, when
+  the other interpreter is absent.
+- Each harness adds its own behavior tests for the refresh, lock and
+  cache-write paths.
 
-When `pwsh` is on `PATH`, the same payloads run through `statusline.ps1` and the
-two outputs are compared byte for byte, escape sequences included. Without it
-the suite covers `statusline.sh` alone and says so.
+Every test runs against a throwaway `XDG_CACHE_HOME` and a stub `claude` on
+`PATH`, so no test reads a real cache or calls the usage endpoint. Cleanup
+removes only a directory matching the name it created.
 
 ## Windows port
 

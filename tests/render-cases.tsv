@@ -1,0 +1,73 @@
+# Render cases shared by test.sh and test.ps1. Tab-separated, six columns:
+#
+#   name  cache  color  assert  expect  payload
+#
+# cache    empty      an empty but current usage cache: no per-model segment,
+#                     and no refresh spawned to race the render
+#          populated  "Fable 61", current
+#          stale      "Fable 61", backdated 45 minutes, with the refresh stubbed
+#                     to fail so it cannot un-stale the value mid-test
+# color    plain      render with NO_COLOR=1
+#          color      render with escape sequences
+# assert   exact      output equals expect
+#          match      output matches expect as a regular expression
+#          diff       statusline.sh and statusline.ps1 must agree byte for byte;
+#                     skipped when only one interpreter is present. A diff case
+#                     must render the same at any instant, since the two runs
+#                     are seconds apart: use an expired prompt cache rather
+#                     than a live countdown.
+# expect   the string or pattern, "EMPTY" for an expected empty line, or "-"
+#          for diff cases. Never blank: a harness reading tabs with `read`
+#          would shift every later column.
+# payload  JSON, with these expansions:
+#            {{M}}      "model":{"display_name":"Opus 5 (1M context)"}
+#            {{D}}      "workspace":{"current_dir":"/tmp"}
+#            {{NOW+n}}  current epoch seconds plus n
+#
+# Lines starting with # and blank lines are ignored.
+
+model strips 1M suffix	empty	plain	exact	Opus 5 1M | tmp	{{{M}},{{D}}}
+200K suffix	empty	plain	exact	H 200K | tmp	{"model":{"display_name":"H (200K context)"},{{D}}}
+no suffix to strip	empty	plain	exact	Sonnet 5 | tmp	{"model":{"display_name":"Sonnet 5"},{{D}}}
+effort follows model	empty	plain	exact	Opus 5 1M xhigh | tmp	{{{M}},{{D}},"effort":{"level":"xhigh"}}
+ctx used	empty	plain	exact	Opus 5 1M | tmp | ctx:13%	{{{M}},{{D}},"context_window":{"used_percentage":13}}
+ctx zero renders	empty	plain	exact	Opus 5 1M | tmp | ctx:0%	{{{M}},{{D}},"context_window":{"used_percentage":0}}
+ctx hundred	empty	plain	exact	Opus 5 1M | tmp | ctx:100%	{{{M}},{{D}},"context_window":{"used_percentage":100}}
+empty payload	empty	plain	exact	EMPTY	{}
+no leading separator	empty	plain	exact	tmp	{{{D}}}
+model only	empty	plain	exact	Sonnet 5	{"model":{"display_name":"Sonnet 5"}}
+
+5h only, no reset	empty	plain	exact	Opus 5 1M | tmp | 5h:12%	{{{M}},{{D}},"rate_limits":{"five_hour":{"used_percentage":12}}}
+7d only, no reset	empty	plain	exact	Opus 5 1M | tmp | 7d:34%	{{{M}},{{D}},"rate_limits":{"seven_day":{"used_percentage":34}}}
+both windows, no resets	empty	plain	exact	Opus 5 1M | tmp | 5h:12% 7d:34%	{{{M}},{{D}},"rate_limits":{"five_hour":{"used_percentage":12},"seven_day":{"used_percentage":34}}}
+null rate_limits	empty	plain	exact	Opus 5 1M | tmp	{{{M}},{{D}},"rate_limits":null}
+
+per-model omitted when cache empty	empty	plain	exact	Opus 5 1M | tmp	{{{M}},{{D}}}
+per-model value renders	populated	plain	exact	Opus 5 1M | tmp | fable:61%	{{{M}},{{D}}}
+per-model appended after 7d	populated	plain	exact	Opus 5 1M | tmp | 7d:34% fable:61%	{{{M}},{{D}},"rate_limits":{"seven_day":{"used_percentage":34}}}
+per-model stale renders gray	stale	color	match	\[90mfable:.\[0m.\[90m61%	{{{M}},{{D}}}
+
+prompt cache warm 1h	empty	plain	match	cache:(59|60):[0-9][0-9]$	{{{M}},{{D}},"prompt_cache":{"warm":true,"ttl":"1h","expires_at":{{NOW+3600}}}}
+prompt cache 5m ttl omitted	empty	plain	exact	Opus 5 1M | tmp	{{{M}},{{D}},"prompt_cache":{"warm":true,"ttl":"5m","expires_at":{{NOW+200}}}}
+prompt cache cold omitted	empty	plain	exact	Opus 5 1M | tmp	{{{M}},{{D}},"prompt_cache":{"warm":false,"ttl":"1h","expires_at":{{NOW+200}}}}
+prompt cache expired floors	empty	plain	exact	Opus 5 1M | tmp | cache:00:00	{{{M}},{{D}},"prompt_cache":{"warm":true,"ttl":"1h","expires_at":1}}
+
+rounding 0.5	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":0.5}}
+rounding 1.5	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":1.5}}
+rounding 11.5	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":11.5}}
+rounding 12.5	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":12.5}}
+rounding 13.5	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":13.5}}
+rounding 49.5	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":49.5}}
+rounding 50.5	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":50.5}}
+rounding 79.5	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":79.5}}
+rounding 80.5	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":80.5}}
+rounding 99.5	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":99.5}}
+rounding 12.4	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":12.4}}
+rounding 12.6	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":12.6}}
+
+green band	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":13},"rate_limits":{"five_hour":{"used_percentage":12,"resets_at":{{NOW+7200}}}}}
+yellow band	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":66},"rate_limits":{"five_hour":{"used_percentage":62,"resets_at":{{NOW+7200}}}}}
+red band	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":92},"rate_limits":{"five_hour":{"used_percentage":91,"resets_at":{{NOW+7200}}}}}
+weekday reset	populated	color	diff	-	{{{M}},{{D}},"rate_limits":{"seven_day":{"used_percentage":34,"resets_at":{{NOW+320000}}}}}
+effort colored	populated	color	diff	-	{{{M}},{{D}},"effort":{"level":"xhigh"}}
+full line	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":13},"effort":{"level":"xhigh"},"rate_limits":{"five_hour":{"used_percentage":12,"resets_at":{{NOW+7200}}},"seven_day":{"used_percentage":34,"resets_at":{{NOW+320000}}}},"prompt_cache":{"warm":true,"ttl":"1h","expires_at":1}}
