@@ -110,6 +110,15 @@ This script fills the gap with `claude -p "/usage"`, a local command
   session on another model family renders `opus:` or `sonnet:` with no edit.
 - The reset time is omitted, being the same window `7d` already reports.
 
+`/usage` can report more than one per-model window. A Max or team plan adds a
+`Sonnet only` window, and each overage-included model adds its own. The segment
+picks one, in this order:
+
+1. The window naming the model in use.
+2. A window not scoped to a single model, since a `<model> only` window says
+   nothing about the model you are actually running.
+3. Whatever was reported first.
+
 Renders are read-stale:
 
 | Usage cache age | Render |

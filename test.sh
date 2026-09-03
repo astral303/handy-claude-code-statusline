@@ -76,8 +76,10 @@ make_cache() {
   d="$WORK/c.$1"
   mkdir -p "$d/claude-statusline"
   case "$2" in
-    populated) printf 'Fable 61' > "$d/claude-statusline/model-usage" ;;
-    stale)     printf 'Fable 61' > "$d/claude-statusline/model-usage"
+    populated) printf '61 Fable' > "$d/claude-statusline/model-usage" ;;
+    multi)     printf '34 Sonnet only\n61 Fable\n' > "$d/claude-statusline/model-usage" ;;
+    onlywin)   printf '34 Sonnet only\n' > "$d/claude-statusline/model-usage" ;;
+    stale)     printf '61 Fable' > "$d/claude-statusline/model-usage"
                touch -t "$(minutes_ago 45)" "$d/claude-statusline/model-usage" 2>/dev/null ;;
     *)         : > "$d/claude-statusline/model-usage" ;;
   esac
@@ -129,7 +131,7 @@ out=$(printf '{%s,%s}' "$M" "$D" | XDG_CACHE_HOME="$c" NO_COLOR=1 sh $SH)
 if [ "$out" = "Opus 5 1M | tmp" ]; then ok "cold render omits the segment"; else bad "cold render omits the segment" "got: [$out]"; fi
 if wait_for "$c/claude-statusline/model-usage"; then
   v=$(cat "$c/claude-statusline/model-usage")
-  if [ "$v" = "Fable 61" ]; then ok "refresh writes the parsed value"; else bad "refresh writes the parsed value" "got: [$v]"; fi
+  if [ "$v" = "61 Fable" ]; then ok "refresh writes the parsed value"; else bad "refresh writes the parsed value" "got: [$v]"; fi
 else bad "refresh writes the parsed value" "cache never appeared"; fi
 if [ -d "$c/claude-statusline/model-usage.lock" ]; then bad "lock released after success"; else ok "lock released after success"; fi
 n=$(ls "$c/claude-statusline/" | grep -c '\.tmp' || true)
@@ -141,12 +143,12 @@ wait
 n=$(pgrep -f "$WORK/bin/claude" 2>/dev/null | wc -l | tr -d ' ')
 if [ "${n:-0}" -le 1 ]; then ok "lock holds 8 concurrent renders to one refresh"; else bad "lock holds 8 concurrent renders to one refresh" "$n spawned"; fi
 
-c=$(make_cache shfail stale); printf 'Fable 42' > "$c/claude-statusline/model-usage"
+c=$(make_cache shfail stale); printf '42 Fable' > "$c/claude-statusline/model-usage"
 touch -t "$(minutes_ago 45)" "$c/claude-statusline/model-usage" 2>/dev/null
 printf '{%s,%s}' "$M" "$D" | XDG_CACHE_HOME="$c" CLAUDE_STUB_FAIL=1 sh $SH > /dev/null
 sleep 1
 v=$(cat "$c/claude-statusline/model-usage")
-if [ "$v" = "Fable 42" ]; then ok "failed refresh keeps the last good value"; else bad "failed refresh keeps the last good value" "got: [$v]"; fi
+if [ "$v" = "42 Fable" ]; then ok "failed refresh keeps the last good value"; else bad "failed refresh keeps the last good value" "got: [$v]"; fi
 
 echo
 [ "$HAVE_PS" = no ] && echo "pwsh not found: diff cases skipped. Run test.ps1 to cover statusline.ps1."

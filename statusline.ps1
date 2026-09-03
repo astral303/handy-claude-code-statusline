@@ -40,14 +40,15 @@ if ($Refresh) {
     New-Item -ItemType Directory -Path $CacheDir -Force -ErrorAction SilentlyContinue | Out-Null
     $out = & claude -p '/usage' 2>$null
     if ($LASTEXITCODE -ne 0) { exit }
+    # Percentage first: a label can be several words ("Sonnet only"), so
+    # putting it last lets the reader take the rest of the line verbatim.
     $value = $out |
       Select-String -Pattern '^Current week \(([^)]+)\):\s*(\d+)% used' |
-      ForEach-Object { '{0} {1}' -f $_.Matches[0].Groups[1].Value, $_.Matches[0].Groups[2].Value } |
-      Where-Object { $_ -notmatch '^all models ' } |
-      Select-Object -First 1
+      ForEach-Object { '{0} {1}' -f $_.Matches[0].Groups[2].Value, $_.Matches[0].Groups[1].Value } |
+      Where-Object { $_ -notmatch ' all models$' }
     # Written even when empty, so a plan with no per-model window does not
     # spawn a refresh on every render.
-    [System.IO.File]::WriteAllText($tmp, [string]$value)
+    [System.IO.File]::WriteAllText($tmp, (($value -join "`n")))
     [System.IO.File]::Move($tmp, $MuCache, $true)
     Remove-Item -LiteralPath $MuLock -Recurse -Force -ErrorAction SilentlyContinue
   } catch {
@@ -171,10 +172,21 @@ function Start-MuRefresh {
 $muLabel = ''; $muPct = $null; $muStale = $false
 if (Test-Path -LiteralPath $MuCache -PathType Leaf) {
   $age = ([DateTime]::UtcNow - (Get-Item -LiteralPath $MuCache).LastWriteTimeUtc).TotalSeconds
-  $first = ([System.IO.File]::ReadAllText($MuCache) -split "`n")[0].Trim()
-  if ($first) {
-    $parts = $first -split '\s+', 2
-    if ($parts.Count -eq 2) { $muLabel = $parts[0]; $muPct = $parts[1] }
+  # A plan can report several per-model windows at once: a Max subscription
+  # shows a "Sonnet only" window alongside each overage-included model. Prefer
+  # the window naming the model in use; then one not scoped to a single model,
+  # since a "<model> only" window says nothing while running another model;
+  # then whatever was reported first.
+  $lines = @([System.IO.File]::ReadAllText($MuCache) -split "`n" |
+    ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^\d+\s+\S' })
+  if ($lines.Count) {
+    $fam = ($model -split '\s+')[0]
+    $line = $lines | Where-Object { ($_ -split '\s+')[1] -ieq $fam } | Select-Object -First 1
+    if (-not $line) { $line = $lines | Where-Object { $_ -notmatch '\s+only$' } | Select-Object -First 1 }
+    if (-not $line) { $line = $lines[0] }
+    $parts = $line -split '\s+', 2
+    $muPct = $parts[0]
+    $muLabel = $parts[1] -replace '\s+only$', ''
   }
   if ($age -ge $MuStaleAge) { $muStale = $true }
   if ($age -ge $MuMaxAge) { Start-MuRefresh }

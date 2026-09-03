@@ -4,8 +4,11 @@
 #
 # cache    empty      an empty but current usage cache: no per-model segment,
 #                     and no refresh spawned to race the render
-#          populated  "Fable 61", current
-#          stale      "Fable 61", backdated 45 minutes, with the refresh stubbed
+#          populated  "61 Fable", current
+#          multi      two windows, "34 Sonnet only" then "61 Fable", as a Max
+#                     plan reports them
+#          onlywin    one window, "34 Sonnet only", and nothing else
+#          stale      "61 Fable", backdated 45 minutes, with the refresh stubbed
 #                     to fail so it cannot un-stale the value mid-test
 # color    plain      render with NO_COLOR=1
 #          color      render with escape sequences
@@ -45,6 +48,9 @@ null rate_limits	empty	plain	exact	Opus 5 1M | tmp	{{{M}},{{D}},"rate_limits":nu
 per-model omitted when cache empty	empty	plain	exact	Opus 5 1M | tmp	{{{M}},{{D}}}
 per-model value renders	populated	plain	exact	Opus 5 1M | tmp | fable:61%	{{{M}},{{D}}}
 per-model appended after 7d	populated	plain	exact	Opus 5 1M | tmp | 7d:34% fable:61%	{{{M}},{{D}},"rate_limits":{"seven_day":{"used_percentage":34}}}
+per-model picks the model in use	multi	plain	exact	Sonnet 5 | tmp | sonnet:34%	{"model":{"display_name":"Sonnet 5"},{{D}}}
+per-model prefers an unscoped window	multi	plain	exact	Opus 5 1M | tmp | fable:61%	{{{M}},{{D}}}
+per-model falls back to the only window	onlywin	plain	exact	Opus 5 1M | tmp | sonnet:34%	{{{M}},{{D}}}
 per-model stale renders gray	stale	color	match	\[90mfable:.\[0m.\[90m61%	{{{M}},{{D}}}
 
 prompt cache warm 1h	empty	plain	match	cache:(59|60):[0-9][0-9]$	{{{M}},{{D}},"prompt_cache":{"warm":true,"ttl":"1h","expires_at":{{NOW+3600}}}}

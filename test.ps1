@@ -77,9 +77,11 @@ function New-Cache {
   New-Item -ItemType Directory -Path $inner -Force | Out-Null
   $f = Join-Path $inner 'model-usage'
   switch ($State) {
-    'populated' { [System.IO.File]::WriteAllText($f, 'Fable 61') }
+    'populated' { [System.IO.File]::WriteAllText($f, '61 Fable') }
+    'multi' { [System.IO.File]::WriteAllText($f, "34 Sonnet only`n61 Fable`n") }
+    'onlywin' { [System.IO.File]::WriteAllText($f, "34 Sonnet only`n") }
     'stale' {
-      [System.IO.File]::WriteAllText($f, 'Fable 61')
+      [System.IO.File]::WriteAllText($f, '61 Fable')
       (Get-Item -LiteralPath $f).LastWriteTimeUtc = [DateTime]::UtcNow.AddMinutes(-45)
     }
     default { [System.IO.File]::WriteAllText($f, '') }
@@ -152,7 +154,7 @@ if ($out -ceq 'Opus 5 1M | tmp') { Write-Ok 'cold render omits the segment' } el
 $cf = Join-Path $c 'claude-statusline/model-usage'
 if (Wait-ForFile $cf) {
   $v = [System.IO.File]::ReadAllText($cf)
-  if ($v -ceq 'Fable 61') { Write-Ok 'refresh writes the parsed value' } else { Write-Bad 'refresh writes the parsed value' @("got: [$v]") }
+  if ($v -ceq '61 Fable') { Write-Ok 'refresh writes the parsed value' } else { Write-Bad 'refresh writes the parsed value' @("got: [$v]") }
 } else { Write-Bad 'refresh writes the parsed value' @('cache never appeared') }
 if (Test-Path (Join-Path $c 'claude-statusline/model-usage.lock')) { Write-Bad 'lock released after success' @() } else { Write-Ok 'lock released after success' }
 # Filtered on *.tmp, the name the refresh actually writes: "model-usage.*"
@@ -179,7 +181,7 @@ $env:XDG_CACHE_HOME = $c
 & pwsh -NoProfile -File $PS -Refresh
 $cf2 = Join-Path $c 'claude-statusline/model-usage'
 $v = if (Test-Path $cf2) { [System.IO.File]::ReadAllText($cf2) } else { 'MISSING' }
-if ($v -ceq 'Fable 61') { Write-Ok '-Refresh writes the cache standalone' } else { Write-Bad '-Refresh writes the cache standalone' @("got: [$v]") }
+if ($v -ceq '61 Fable') { Write-Ok '-Refresh writes the cache standalone' } else { Write-Bad '-Refresh writes the cache standalone' @("got: [$v]") }
 
 $c = New-Cache 'psfail' 'empty'
 Remove-Item -LiteralPath (Join-Path $c 'claude-statusline/model-usage') -Force -ErrorAction SilentlyContinue
@@ -191,12 +193,12 @@ if (Test-Path (Join-Path $c 'claude-statusline/model-usage')) { Write-Bad '-Refr
 else { Write-Ok '-Refresh leaves the cache alone on failure' }
 
 $c = New-Cache 'psstale' 'stale'
-[System.IO.File]::WriteAllText((Join-Path $c 'claude-statusline/model-usage'), 'Fable 42')
+[System.IO.File]::WriteAllText((Join-Path $c 'claude-statusline/model-usage'), '42 Fable')
 (Get-Item -LiteralPath (Join-Path $c 'claude-statusline/model-usage')).LastWriteTimeUtc = [DateTime]::UtcNow.AddMinutes(-45)
 Invoke-Line 'ps' "{$M,$D}" $c -Plain -StubFail | Out-Null
 Start-Sleep -Seconds 1
 $v = [System.IO.File]::ReadAllText((Join-Path $c 'claude-statusline/model-usage'))
-if ($v -ceq 'Fable 42') { Write-Ok 'failed refresh keeps the last good value' } else { Write-Bad 'failed refresh keeps the last good value' @("got: [$v]") }
+if ($v -ceq '42 Fable') { Write-Ok 'failed refresh keeps the last good value' } else { Write-Bad 'failed refresh keeps the last good value' @("got: [$v]") }
 
 Remove-Item Env:XDG_CACHE_HOME -ErrorAction SilentlyContinue
 Remove-Work

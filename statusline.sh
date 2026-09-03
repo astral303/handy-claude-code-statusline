@@ -83,9 +83,11 @@ mu_refresh() {
     cache=$1 lock=$2
     tmp=$(mktemp "$cache.XXXXXX") || exit
     if out=$(claude -p "/usage" </dev/null 2>/dev/null); then
+      # Percentage first: a label can be several words ("Sonnet only"), so
+      # putting it last lets the reader take the rest of the line verbatim.
       printf "%s\n" "$out" \
-        | sed -n "s/^Current week (\([^)]*\)): *\([0-9]*\)% used.*/\1 \2/p" \
-        | grep -v "^all models " > "$tmp"
+        | sed -n "s/^Current week (\([^)]*\)): *\([0-9]*\)% used.*/\2 \1/p" \
+        | grep -vi " all models$" > "$tmp"
       mv "$tmp" "$cache" 2>/dev/null
       rmdir "$lock" 2>/dev/null
     fi
@@ -97,7 +99,21 @@ mu_label="" mu_pct="" mu_stale=""
 if [ -f "$MU_CACHE" ]; then
   mt=$(mtime "$MU_CACHE")
   age=$((now - ${mt:-0}))
-  IFS=' ' read -r mu_label mu_pct < "$MU_CACHE"
+  # A plan can report several per-model windows at once: a Max subscription
+  # shows a "Sonnet only" window alongside each overage-included model. Prefer
+  # the window naming the model in use; then one not scoped to a single model,
+  # since a "<model> only" window says nothing while running another model;
+  # then whatever was reported first.
+  fam=$(printf '%s' "$model" | awk '{print tolower($1)}')
+  line=$(awk -v f="$fam" 'NF > 1 && tolower($2) == f { print; exit }' "$MU_CACHE")
+  [ -z "$line" ] && line=$(awk 'NF > 1 && $NF != "only" { print; exit }' "$MU_CACHE")
+  [ -z "$line" ] && line=$(awk 'NF > 1 { print; exit }' "$MU_CACHE")
+  if [ -n "$line" ]; then
+    mu_pct=${line%% *}
+    mu_label=${line#* }
+    mu_label=${mu_label% only}
+    case "$mu_pct" in ''|*[!0-9]*) mu_pct='' ;; esac
+  fi
   [ "$age" -ge "$MU_STALE_AGE" ] && mu_stale=1
   [ "$age" -ge "$MU_MAX_AGE" ] && mu_refresh
 else
