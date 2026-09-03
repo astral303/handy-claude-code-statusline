@@ -198,6 +198,62 @@ Renders are read-stale:
 - `date -r` and `stat -f` (BSD) fall back to `date -d @` and `stat -c` (GNU).
 - The script is `/bin/sh` and has been run on macOS.
 
+## Tests
+
+```sh
+sh test.sh
+```
+
+63 assertions, exit non-zero on failure. Each test runs against a throwaway
+`XDG_CACHE_HOME` and a stub `claude` on `PATH`, so no test reads a real cache
+or calls the usage endpoint. Cleanup removes only a directory matching the name
+it created.
+
+Groups covered: segment rendering and omission, rate-limit windows, the
+per-model window, prompt-cache states, rounding at every midpoint, stale
+rendering, and the refresh, lock and cache-write paths.
+
+When `pwsh` is on `PATH`, the same payloads run through `statusline.ps1` and the
+two outputs are compared byte for byte, escape sequences included. Without it
+the suite covers `statusline.sh` alone and says so.
+
+## Windows port
+
+`statusline.ps1` mirrors `statusline.sh`: same segments, colors, thresholds and
+read-stale behavior. It needs PowerShell 7 (`[System.IO.File]::Move` with
+overwrite is .NET Core 3.0+).
+
+```json
+"statusLine": {
+  "type": "command",
+  "command": "pwsh -NoProfile -File C:/Users/you/.claude/statusline.ps1",
+  "refreshInterval": 10
+}
+```
+
+### Divergences from the shell script
+
+| Point | Shell | PowerShell |
+| --- | --- | --- |
+| Payload parse | one `jq` call | `ConvertFrom-Json`, no external process |
+| Rounding | `printf '%.0f'`, half to even under the default IEEE mode | `[math]::Round` with its default, also half to even; `12.5` gives `12` in both, and `[MidpointRounding]::AwayFromZero` would diverge |
+| Lock | `mkdir`, which fails when the directory exists | `New-Item -ItemType Directory`, which throws; `[Directory]::CreateDirectory` succeeds silently and would leave every session unlocked |
+| Atomic replace | `mv` over the existing file | `[System.IO.File]::Move($src, $dst, $true)`; `Move-Item` fails when the destination exists |
+| Detached refresh | `nohup … &` | `Start-Process -WindowStyle Hidden` re-entering the script with `-Refresh`; `Start-Job` would die with the parent |
+| Cache location | `${XDG_CACHE_HOME:-~/.cache}` | `%LOCALAPPDATA%`, with `XDG_CACHE_HOME` taking precedence |
+
+Error handling also differs. `$ErrorActionPreference` is `SilentlyContinue`
+with `$PSNativeCommandUseErrorActionPreference = $false`, and each risky call
+opts in to `Stop`. From PowerShell 7.3 a native command's non-zero exit honors
+that preference, so `git` run outside a repository would otherwise throw and
+replace the status line with an error message.
+
+Windows sessions have been reported accumulating statusline `pwsh.exe`
+processes
+([#86551](https://github.com/anthropics/claude-code/issues/86551), open). The
+detached refresh adds one short-lived process per refresh, bounded by
+`MuMaxAge` to about four an hour.
+
 ## Limitations
 
 - The per-model value lags by up to `MU_MAX_AGE`. A value older than
