@@ -2,7 +2,7 @@
 
 A Claude Code status line showing model, effort, directory, git branch, context
 usage, rate-limit windows, the per-model weekly window, and the prompt-cache
-countdown.
+countdown. POSIX `sh` and PowerShell 7, no runtime beyond `jq`.
 
 ```
 Opus 5 1M xhigh | rearview (main) | ctx:13% | 5h:12%@19:44 7d:34%@Mon10:38 fable:61% | cache:54:01
@@ -195,8 +195,11 @@ Renders are read-stale:
 
 ### Portability
 
+- `#!/bin/sh` with no bash or zsh extensions. The full suite passes under
+  `dash`, `bash`, `zsh` and `ksh`, and `dash` is the strict POSIX shell, so
+  passing there is what rules out an accidental bashism.
 - `date -r` and `stat -f` (BSD) fall back to `date -d @` and `stat -c` (GNU).
-- The script is `/bin/sh` and has been run on macOS.
+- Run on macOS. Not yet run on Linux, or on Windows for the PowerShell port.
 
 ## Tests
 
@@ -220,6 +223,13 @@ there is covered on both platforms. Each exits non-zero on failure.
 Every test runs against a throwaway `XDG_CACHE_HOME` and a stub `claude` on
 `PATH`, so no test reads a real cache or calls the usage endpoint. Cleanup
 removes only a directory matching the name it created.
+
+`test.sh` is itself `#!/bin/sh` and passes under `dash`, `bash`, `zsh` and
+`ksh`, so the suite can be run with whichever of those is present:
+
+```sh
+dash test.sh
+```
 
 ## Windows port
 
