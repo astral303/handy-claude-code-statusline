@@ -311,8 +311,8 @@ Issues are welcome. Two kinds are especially useful:
 
 - **A segment that stopped appearing.** The per-model segment parses the text
   `/usage` prints, and the rest reads a payload schema that is not a stability
-  contract, so a Claude Code release can break either one silently. Help the
-  report get noticed by naming the version you are on.
+  contract, so a Claude Code release can break either one silently. Name the
+  version you are on.
 - **Anything from Linux or Windows.** Both are unrun (see
   [Portability](#portability)), so a report is useful even when nothing is
   broken.
