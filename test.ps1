@@ -80,6 +80,7 @@ function New-Cache {
     'populated' { [System.IO.File]::WriteAllText($f, '61 Fable') }
     'multi' { [System.IO.File]::WriteAllText($f, "34 Sonnet only`n61 Fable`n") }
     'onlywin' { [System.IO.File]::WriteAllText($f, "34 Sonnet only`n") }
+    'legacy' { [System.IO.File]::WriteAllText($f, 'Fable 61') }
     'stale' {
       [System.IO.File]::WriteAllText($f, '61 Fable')
       (Get-Item -LiteralPath $f).LastWriteTimeUtc = [DateTime]::UtcNow.AddMinutes(-45)

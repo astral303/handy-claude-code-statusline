@@ -190,6 +190,11 @@ if (Test-Path -LiteralPath $MuCache -PathType Leaf) {
   }
   if ($age -ge $MuStaleAge) { $muStale = $true }
   if ($age -ge $MuMaxAge) { Start-MuRefresh }
+  # A cache holding content that parses to nothing was written by an older
+  # version or truncated. Refresh now rather than leaving the segment blank
+  # until MuMaxAge elapses. An intentionally empty cache is not content, so a
+  # plan with no per-model window still does not refresh on every render.
+  if (-not $muPct -and (Get-Item -LiteralPath $MuCache).Length -gt 0) { Start-MuRefresh }
 } else {
   Start-MuRefresh
 }

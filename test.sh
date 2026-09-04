@@ -79,6 +79,7 @@ make_cache() {
     populated) printf '61 Fable' > "$d/claude-statusline/model-usage" ;;
     multi)     printf '34 Sonnet only\n61 Fable\n' > "$d/claude-statusline/model-usage" ;;
     onlywin)   printf '34 Sonnet only\n' > "$d/claude-statusline/model-usage" ;;
+    legacy)    printf 'Fable 61' > "$d/claude-statusline/model-usage" ;;
     stale)     printf '61 Fable' > "$d/claude-statusline/model-usage"
                touch -t "$(minutes_ago 45)" "$d/claude-statusline/model-usage" 2>/dev/null ;;
     *)         : > "$d/claude-statusline/model-usage" ;;

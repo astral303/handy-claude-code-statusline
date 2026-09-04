@@ -116,6 +116,11 @@ if [ -f "$MU_CACHE" ]; then
   fi
   [ "$age" -ge "$MU_STALE_AGE" ] && mu_stale=1
   [ "$age" -ge "$MU_MAX_AGE" ] && mu_refresh
+  # A cache holding content that parses to nothing was written by an older
+  # version or truncated. Refresh now rather than leaving the segment blank
+  # until MU_MAX_AGE elapses. An intentionally empty cache is not content, so
+  # a plan with no per-model window still does not refresh on every render.
+  [ -z "$mu_pct" ] && [ -s "$MU_CACHE" ] && mu_refresh
 else
   mu_refresh
 fi
