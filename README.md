@@ -1,8 +1,10 @@
 # handy-claude-code-statusline
 
-A Claude Code status line showing model, effort, directory, git branch, context
-usage, rate-limit windows, the per-model weekly window, and the prompt-cache
-countdown. POSIX `sh` and PowerShell 7, no runtime beyond `jq`.
+A Claude Code status line showing: model, effort, directory, git branch,
+context usage, rate-limit windows, the per-model weekly window, and the
+prompt-cache countdown.
+
+POSIX `sh` and PowerShell 7, no runtime beyond `jq`.
 
 ![Status line in a dark terminal: model name bold, effort magenta, directory cyan, branch and labels gray, context and rate-limit percentages green, per-model value yellow.](docs/statusline.png)
 
@@ -10,9 +12,9 @@ countdown. POSIX `sh` and PowerShell 7, no runtime beyond `jq`.
 Opus 5 1M xhigh | rearview (main) | ctx:40% | 5h:6%@21:40 7d:34%@Tue13:00 fable:61% | cache:56:39
 ```
 
-The per-model weekly window (`fable:61%`) is not in the status line payload.
+Missing from the status line payload: the per-model weekly window (`fable:61%`).
 This script reads it from `claude -p "/usage"` on a background refresh, with no
-credential read. See [Per-model weekly window](#per-model-weekly-window).
+credential read (see [Per-model weekly window](#per-model-weekly-window)).
 
 ## Installation
 
@@ -41,9 +43,10 @@ credential read. See [Per-model weekly window](#per-model-weekly-window).
 
    Expected: `Opus 5 1M | <dir> (<branch>) | ctx:13%`.
 
-`refreshInterval` re-runs the command every N seconds on top of Claude Code's
-event-driven updates. Without it the prompt-cache countdown only advances when
-something else triggers a render.
+The prompt-cache countdown needs `refreshInterval` to be useful. The setting
+re-runs the command every N seconds on top of Claude Code's event-driven
+updates; without it the countdown only advances when something else triggers a
+render.
 
 ## Segments
 
@@ -267,11 +270,15 @@ overwrite is .NET Core 3.0+).
 | Detached refresh | `nohup … &` | `Start-Process -WindowStyle Hidden` re-entering the script with `-Refresh`; `Start-Job` would die with the parent |
 | Cache location | `${XDG_CACHE_HOME:-~/.cache}` | `%LOCALAPPDATA%`, with `XDG_CACHE_HOME` taking precedence |
 
-Error handling also differs. `$ErrorActionPreference` is `SilentlyContinue`
-with `$PSNativeCommandUseErrorActionPreference = $false`, and each risky call
-opts in to `Stop`. From PowerShell 7.3 a native command's non-zero exit honors
-that preference, so `git` run outside a repository would otherwise throw and
-replace the status line with an error message.
+Error handling also differs. A status line has to degrade to a shorter line,
+never to an error message:
+
+- `$ErrorActionPreference` is `SilentlyContinue`, so failures stay
+  non-terminating. Each risky call opts in to `Stop` individually.
+- `$PSNativeCommandUseErrorActionPreference` is `$false`. From PowerShell 7.3
+  that preference makes a native command's non-zero exit throw as well.
+- `git` run outside a repository therefore drops the branch segment instead of
+  replacing the line with an error message.
 
 Windows sessions have been reported accumulating statusline `pwsh.exe`
 processes
@@ -300,13 +307,15 @@ detached refresh adds one short-lived process per refresh, bounded by
 
 ## Reporting a problem
 
-Issues are welcome. The per-model segment parses the text `/usage` prints, and
-the rest reads a payload schema that is not a stability contract, so a Claude
-Code release can break either one without warning, silently and with no error.
-A report naming the version you are on is the fastest way that gets noticed.
+Issues are welcome. Two kinds are especially useful:
 
-Linux and Windows are unrun (see [Portability](#portability)), so a report from
-either is useful even when nothing is broken.
+- **A segment that stopped appearing.** The per-model segment parses the text
+  `/usage` prints, and the rest reads a payload schema that is not a stability
+  contract, so a Claude Code release can break either one silently. Help the
+  report get noticed by naming the version you are on.
+- **Anything from Linux or Windows.** Both are unrun (see
+  [Portability](#portability)), so a report is useful even when nothing is
+  broken.
 
 ## License
 
