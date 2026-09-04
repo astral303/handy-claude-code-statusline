@@ -1,0 +1,43 @@
+name: Bug report
+description: A segment is missing or wrong, or the line does not render.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two common cases that are working as intended:
+
+        - **The per-model segment (`fable:`, `opus:`) never appears.** Not every
+          plan reports a per-model weekly window. Run `claude -p "/usage"`: with
+          no `Current week (<model>)` line, there is nothing for it to show.
+        - **It is missing for the first few seconds.** The value is fetched by a
+          background refresh and appears on a later render.
+
+  - type: textarea
+    id: rendered
+    attributes:
+      label: The status line as it renders
+      description: Paste the line, or say that it is blank.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: usage
+    attributes:
+      label: The `Current week` lines from `claude -p "/usage"`
+      description: >
+        Only needed when a rate-limit or per-model segment is wrong. Replace the
+        percentages with any numbers; the wording is what the script parses, and
+        a release changing it is the likeliest cause.
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: env
+    attributes:
+      label: OS, shell, and Claude Code version
+      placeholder: macOS 15.6, zsh, 2.1.259
+    validations:
+      required: true

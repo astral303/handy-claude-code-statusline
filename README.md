@@ -4,8 +4,10 @@ A Claude Code status line showing model, effort, directory, git branch, context
 usage, rate-limit windows, the per-model weekly window, and the prompt-cache
 countdown. POSIX `sh` and PowerShell 7, no runtime beyond `jq`.
 
+![Status line in a dark terminal: model name bold, effort magenta, directory cyan, branch and labels gray, context and rate-limit percentages green, per-model value yellow.](docs/statusline.png)
+
 ```
-Opus 5 1M xhigh | rearview (main) | ctx:13% | 5h:12%@19:44 7d:34%@Mon10:38 fable:61% | cache:54:01
+Opus 5 1M xhigh | rearview (main) | ctx:40% | 5h:6%@21:40 7d:34%@Tue13:00 fable:61% | cache:56:39
 ```
 
 The per-model weekly window (`fable:61%`) is not in the status line payload.
@@ -51,11 +53,11 @@ something else triggers a render.
 | `xhigh` | `effort.level` | field absent |
 | `rearview` | `workspace.current_dir`, basename | field absent |
 | `(main)` | `git branch --show-current`, read live | not a git repository |
-| `ctx:13%` | `context_window.used_percentage` | field absent |
-| `5h:12%@19:44` | `rate_limits.five_hour` | field absent |
-| `7d:34%@Mon10:38` | `rate_limits.seven_day` | field absent |
+| `ctx:40%` | `context_window.used_percentage` | field absent |
+| `5h:6%@21:40` | `rate_limits.five_hour` | field absent |
+| `7d:34%@Tue13:00` | `rate_limits.seven_day` | field absent |
 | `fable:61%` | `claude -p "/usage"`, cached | no cached value |
-| `cache:54:01` | `prompt_cache.expires_at` | prompt cache cold, or `ttl` is `5m` |
+| `cache:56:39` | `prompt_cache.expires_at` | prompt cache cold, or `ttl` is `5m` |
 
 Reset times after `@` are local clock time, prefixed with the weekday once the
 reset falls past today.
@@ -295,6 +297,16 @@ detached refresh adds one short-lived process per refresh, bounded by
 | `jq` | parsing the payload; required |
 | `git` | the branch segment |
 | `claude` on `PATH` | the per-model segment |
+
+## Reporting a problem
+
+Issues are welcome. The per-model segment parses the text `/usage` prints, and
+the rest reads a payload schema that is not a stability contract, so a Claude
+Code release can break either one without warning, silently and with no error.
+A report naming the version you are on is the fastest way that gets noticed.
+
+Linux and Windows are unrun (see [Portability](#portability)), so a report from
+either is useful even when nothing is broken.
 
 ## License
 
