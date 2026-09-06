@@ -110,7 +110,9 @@ mu_refresh() {
   nohup sh -c '
     cache=$1 lock=$2
     tmp=$(mktemp "$cache.XXXXXX") || exit
-    if out=$(claude -p "/usage" </dev/null 2>/dev/null); then
+    # Without --no-session-persistence, print mode writes a ~3 KB session
+    # file into the project of the live session on every refresh.
+    if out=$(claude -p --no-session-persistence "/usage" </dev/null 2>/dev/null); then
       # Percentage first: a label can be several words ("Sonnet only"), so
       # putting it last lets the reader take the rest of the line verbatim.
       printf "%s\n" "$out" \

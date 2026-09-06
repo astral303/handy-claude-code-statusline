@@ -38,7 +38,9 @@ if ($Refresh) {
     # Created here as well as in Start-MuRefresh, so -Refresh also works when
     # invoked on its own, such as from a scheduled task.
     New-Item -ItemType Directory -Path $CacheDir -Force -ErrorAction SilentlyContinue | Out-Null
-    $out = & claude -p '/usage' 2>$null
+    # Without --no-session-persistence, print mode writes a ~3 KB session
+    # file into the project of the live session on every refresh.
+    $out = & claude -p --no-session-persistence '/usage' 2>$null
     if ($LASTEXITCODE -ne 0) { exit }
     # Percentage first: a label can be several words ("Sonnet only"), so
     # putting it last lets the reader take the rest of the line verbatim.
