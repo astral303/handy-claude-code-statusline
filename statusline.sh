@@ -11,9 +11,9 @@ now=$(date -u +%s)
 # Unit separator rather than tab: read collapses runs of IFS whitespace, which
 # would shift every field after an empty one.
 US=$(printf '\037')
-IFS="$US" read -r model dir ctx five five_r week week_r effort warm ttl expires <<EOF
+IFS="$US" read -r model dir project_dir ctx five five_r week week_r effort warm ttl expires <<EOF
 $(printf '%s' "$input" | jq -r '[
-  .model.display_name, .workspace.current_dir,
+  .model.display_name, .workspace.current_dir, .workspace.project_dir,
   .context_window.used_percentage,
   .rate_limits.five_hour.used_percentage, .rate_limits.five_hour.resets_at,
   .rate_limits.seven_day.used_percentage, .rate_limits.seven_day.resets_at,
@@ -26,15 +26,38 @@ model=$(printf '%s' "$model" | sed 's/ (\([0-9]*[MK]\) context)/ \1/')
 branch=""
 [ -n "$dir" ] && branch=$(git -C "$dir" --no-optional-locks branch --show-current 2>/dev/null)
 
-# Labels, separators and reset times stay gray so the eye lands on the values.
-# Green, yellow and red mark threshold state and nothing else, so a warm color
-# anywhere on the line means some number is worth reading.
+directory_label() {
+  # Git resolves symlinks and retains the project even when launched in a subfolder.
+  if git_path=$(git -C "$dir" --no-optional-locks rev-parse --show-toplevel --show-prefix 2>/dev/null); then
+    project_root=$(printf '%s\n' "$git_path" | sed -n '1p')
+    relative_dir=$(printf '%s\n' "$git_path" | sed -n '2p')
+    printf '%s' "$(basename "$project_root")${relative_dir:+/${relative_dir%/}}"
+    return
+  fi
+  # Outside Git, retain the launch directory when it contains the current one.
+  current=$(printf '%s' "$dir" | tr '\\' '/')
+  current=${current%/}
+  project=$(printf '%s' "$project_dir" | tr '\\' '/')
+  project=${project%/}
+  if [ -n "$project" ]; then
+    case "$current" in
+      "$project"|"$project"/*) printf '%s' "${project##*/}${current#"$project"}"; return ;;
+    esac
+  fi
+  printf '%s' "${current##*/}"
+  [ -n "$current" ] || printf '/'
+}
+
+# Fixed light colors remain readable on dark backgrounds across terminal themes.
+# Labels and reset times stay readable; only separators use the subdued gray.
 if [ -n "$NO_COLOR" ] || [ "$TERM" = dumb ]; then
-  Z= BD= GY= MG= CY= GN= YL= RD=
+  Z= BD= FG= GY= DIM= MG= CY= GN= YL= RD=
 else
   E=$(printf '\033')
-  Z="$E[0m" BD="$E[1m" GY="$E[90m" MG="$E[35m" CY="$E[36m"
-  GN="$E[32m" YL="$E[33m" RD="$E[31m"
+  Z="$E[0m" BD="$E[1m" FG="$E[38;2;230;237;243m"
+  GY="$E[38;2;179;189;204m" DIM="$E[38;2;110;118;129m"
+  MG="$E[38;2;240;171;252m" CY="$E[38;2;125;211;252m"
+  GN="$E[38;2;126;231;135m" YL="$E[38;2;242;204;96m" RD="$E[38;2;255;123;114m"
 fi
 
 # Threshold color where a smaller number is worse (time left on the cache).
@@ -49,7 +72,7 @@ lt() { date -r "$1" +"$2" 2>/dev/null || date -d "@$1" +"$2" 2>/dev/null; }
 # Prints nothing when resets_at is absent or neither date accepts it.
 reset_at() {
   [ -z "$1" ] && return
-  if [ "$(lt "$1" %F)" = "$(date +%F)" ]; then lt "$1" %H:%M; else lt "$1" '%a%H:%M'; fi
+  if [ "$(lt "$1" %F)" = "$(date +%F)" ]; then lt "$1" %H:%M; else lt "$1" '%a %H:%M'; fi
 }
 
 # ── Per-model weekly window ────────────────────────────────────────────────
@@ -66,7 +89,12 @@ MU_MAX_AGE=900    # refresh once the cached value is older than 15 minutes
 MU_STALE_AGE=1800 # past 30 minutes, render gray instead of a threshold color
 MU_LOCK_AGE=120   # a lock older than this is treated as abandoned
 
-mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null; }
+mtime() {
+  # GNU stat can print filesystem details before rejecting the BSD arguments.
+  # Discard that output on failure so only a timestamp reaches the arithmetic.
+  if stamp=$(stat -f %m "$1" 2>/dev/null); then printf '%s\n' "$stamp"
+  else stat -c %Y "$1" 2>/dev/null; fi
+}
 
 # Detached refresh. On failure the lock is left to expire, which throttles
 # retries to one per MU_LOCK_AGE while /usage is unreachable.
@@ -129,35 +157,36 @@ fi
 # ${out:+$out } supplies the separator only once something precedes it, so a
 # missing leading segment does not leave the line starting with "|".
 out=""
-[ -n "$model" ] && out="$BD$model$Z"
+BAR=" $DIM|$Z "
+[ -n "$model" ] && out="$BD$FG$model$Z"
 [ -n "$effort" ] && out="${out:+$out }$MG$effort$Z"
-[ -n "$dir" ] && out="${out:+$out $GY|$Z }$CY$(basename "$dir")$Z"
+[ -n "$dir" ] && out="${out:+$out$BAR}$CY$(directory_label)$Z"
 [ -n "$branch" ] && out="${out:+$out }$GY($branch)$Z"
 
 if [ -n "$ctx" ]; then
   n=$(printf '%.0f' "$ctx")
-  out="${out:+$out $GY|$Z }${GY}ctx:$Z$(hi "$n" 50 80)$n%$Z"
+  out="${out:+$out$BAR}${GY}ctx: $Z$(hi "$n" 50 80)$n%$Z"
 fi
 
 rl=""
 if [ -n "$five" ]; then
   n=$(printf '%.0f' "$five")
-  rl="${GY}5h:$Z$(hi "$n" 50 80)$n%$Z"
-  r=$(reset_at "$five_r") && [ -n "$r" ] && rl="$rl$GY@$r$Z"
+  rl="${GY}5h: $Z$(hi "$n" 50 80)$n%$Z"
+  r=$(reset_at "$five_r") && [ -n "$r" ] && rl="$rl$GY @ $r$Z"
 fi
 if [ -n "$week" ]; then
-  [ -n "$rl" ] && rl="$rl "
+  [ -n "$rl" ] && rl="$rl$BAR"
   n=$(printf '%.0f' "$week")
-  rl="$rl${GY}7d:$Z$(hi "$n" 50 80)$n%$Z"
-  r=$(reset_at "$week_r") && [ -n "$r" ] && rl="$rl$GY@$r$Z"
+  rl="$rl${GY}7d: $Z$(hi "$n" 50 80)$n%$Z"
+  r=$(reset_at "$week_r") && [ -n "$r" ] && rl="$rl$GY @ $r$Z"
 fi
 if [ -n "$mu_pct" ]; then
-  [ -n "$rl" ] && rl="$rl "
+  [ -n "$rl" ] && rl="$rl$BAR"
   lbl=$(printf '%s' "$mu_label" | tr 'A-Z' 'a-z')
   if [ -n "$mu_stale" ]; then c="$GY"; else c=$(hi "$mu_pct" 50 80); fi
-  rl="$rl${GY}${lbl}:$Z$c$mu_pct%$Z"
+  rl="$rl${GY}${lbl}: $Z$c$mu_pct%$Z"
 fi
-[ -n "$rl" ] && out="${out:+$out $GY|$Z }$rl"
+[ -n "$rl" ] && out="${out:+$out$BAR}$rl"
 
 # Shown only for the 1-hour prompt cache; a 5-minute one reports ttl "5m" and
 # is left out, as is a cold prompt cache.
@@ -165,7 +194,7 @@ if [ "$warm" = true ] && [ "$ttl" = 1h ] && [ -n "$expires" ]; then
   remain=$((expires - now))
   [ "$remain" -lt 0 ] && remain=0
   m=$((remain / 60))
-  out="${out:+$out $GY|$Z }${GY}cache:$Z$(lo "$m" 15 5)$(printf '%02d:%02d' "$m" $((remain % 60)))$Z"
+  out="${out:+$out$BAR}${GY}cache: $Z$(lo "$m" 15 5)$(printf '%02d:%02d' "$m" $((remain % 60)))$Z"
 fi
 
 printf '%s' "$out"

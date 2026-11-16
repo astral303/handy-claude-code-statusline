@@ -6,13 +6,11 @@ prompt-cache countdown.
 
 POSIX `sh` and PowerShell 7, no runtime beyond `jq`.
 
-![Status line in a dark terminal: model name bold, effort magenta, directory cyan, branch and labels gray, context and rate-limit percentages green, per-model value yellow.](docs/statusline.png)
-
 ```
-Opus 5 1M xhigh | rearview (main) | ctx:40% | 5h:6%@21:40 7d:34%@Tue13:00 fable:61% | cache:56:39
+Opus 5 1M xhigh | rearview/src (main) | ctx: 40% | 5h: 6% @ 21:40 | 7d: 34% @ Tue 13:00 | fable: 61% | cache: 56:39
 ```
 
-Missing from the status line payload: the per-model weekly window (`fable:61%`).
+Missing from the status line payload: the per-model weekly window (`fable: 61%`).
 This script reads it from `claude -p "/usage"` on a background refresh, with no
 credential read (see [Per-model weekly window](#per-model-weekly-window)).
 
@@ -41,7 +39,7 @@ credential read (see [Per-model weekly window](#per-model-weekly-window)).
      | sh ~/.claude/statusline-command.sh
    ```
 
-   Expected: `Opus 5 1M | <dir> (<branch>) | ctx:13%`.
+   Expected: `Opus 5 1M | <project>/<subdir> (<branch>) | ctx: 13%`.
 
 The prompt-cache countdown needs `refreshInterval` to be useful. The setting
 re-runs the command every N seconds on top of Claude Code's event-driven
@@ -54,38 +52,47 @@ render.
 | --- | --- | --- |
 | `Opus 5 1M` | `model.display_name` | field absent |
 | `xhigh` | `effort.level` | field absent |
-| `rearview` | `workspace.current_dir`, basename | field absent |
+| `rearview/src` | Git root name and relative current directory; falls back to `workspace.project_dir` | `workspace.current_dir` absent |
 | `(main)` | `git branch --show-current`, read live | not a git repository |
-| `ctx:40%` | `context_window.used_percentage` | field absent |
-| `5h:6%@21:40` | `rate_limits.five_hour` | field absent |
-| `7d:34%@Tue13:00` | `rate_limits.seven_day` | field absent |
-| `fable:61%` | `claude -p "/usage"`, cached | no cached value |
-| `cache:56:39` | `prompt_cache.expires_at` | prompt cache cold, or `ttl` is `5m` |
+| `ctx: 40%` | `context_window.used_percentage` | field absent |
+| `5h: 6% @ 21:40` | `rate_limits.five_hour` | field absent |
+| `7d: 34% @ Tue 13:00` | `rate_limits.seven_day` | field absent |
+| `fable: 61%` | `claude -p "/usage"`, cached | no cached value |
+| `cache: 56:39` | `prompt_cache.expires_at` | prompt cache cold, or `ttl` is `5m` |
 
 Reset times after `@` are local clock time, prefixed with the weekday once the
 reset falls past today.
+
+The directory starts at the Git root, so `amen23/logs` stays recognizable even
+when Claude Code was launched inside `logs`. At the root it shows just `amen23`.
+Outside Git it uses the launch directory (`workspace.project_dir`) when the
+current directory is within it, otherwise just the current directory's name.
+Paths use `/` on both platforms and omit ancestors above the project.
 
 Payload schema: <https://code.claude.com/docs/en/statusline.md>
 
 ## Color scheme
 
-Tuned for a dark terminal. Uses the terminal's own 16-color palette rather than
-fixed RGB, so it follows the active theme.
+Uses fixed RGB truecolor values for a dark terminal, independent of the theme's
+ANSI palette. Requires truecolor support; `NO_COLOR` or `TERM=dumb` emits plain
+text without escape sequences.
 
 | Element | Color |
 | --- | --- |
-| Model name | bold |
-| Effort | magenta |
-| Directory | cyan |
-| Branch, labels, separators, reset times | gray |
-| Percentages and the prompt-cache countdown | green / yellow / red by threshold |
-| A per-model value older than 30 minutes | gray |
+| Model name | bold, light foreground `#E6EDF3` |
+| Effort | light magenta `#F0ABFC` |
+| Directory | light cyan `#7DD3FC` |
+| Branch, labels, reset times | light gray `#B3BDCC` |
+| Separators | subdued gray `#6E7681` |
+| Healthy percentages and prompt-cache countdown | green `#7EE787` |
+| Warning values | yellow `#F2CC60` |
+| Critical values | light red `#FF7B72` |
+| A per-model value older than 30 minutes | light gray `#B3BDCC` |
 
-Green, yellow and red appear on threshold values and nowhere else. Branch and
-reset times stay gray so that a warm color anywhere on the line marks a number
-worth reading rather than decoration.
-
-`NO_COLOR` or `TERM=dumb` emits no escape sequences.
+Green, yellow and red appear on threshold values and nowhere else. Green means
+the value is in the healthy range, including the prompt-cache countdown. Labels
+and reset times stay readable, while separators recede. Each usage window has
+its own separator, with spaces after labels and around reset markers.
 
 ## Thresholds
 
@@ -147,7 +154,7 @@ Renders are read-stale:
 
 ### One jq pass, unit-separated
 
-- All eleven payload fields are read in one `jq` call. At `refreshInterval: 10`
+- All twelve payload fields are read in one `jq` call. At `refreshInterval: 10`
   the script runs six times a minute, and each `jq` spawn costs more than the
   parse.
 - Fields are joined with `\u001f` (unit separator), not a tab. `read` collapses
@@ -213,7 +220,8 @@ Renders are read-stale:
   `dash`, `bash`, `zsh` and `ksh`, and `dash` is the strict POSIX shell, so
   passing there is what rules out an accidental bashism.
 - `date -r` and `stat -f` (BSD) fall back to `date -d @` and `stat -c` (GNU).
-- Run on macOS. Not yet run on Linux, or on Windows for the PowerShell port.
+- Previously run on macOS. The shared render cases and behavior tests also
+  pass under PowerShell and Git Bash on Windows. Not yet run on Linux.
 
 ## Tests
 
@@ -225,9 +233,10 @@ pwsh -NoProfile -File test.ps1   # statusline.ps1
 Both harnesses read the same corpus, `tests/render-cases.tsv`, so a case added
 there is covered on both platforms. Each exits non-zero on failure.
 
-- The corpus holds 40 render cases: segment rendering and omission, rate-limit
+- The shared corpus covers segment rendering and omission, rate-limit
   windows, the per-model window, prompt-cache states, rounding at every
-  midpoint, and stale rendering. Its header documents the column format.
+  midpoint, stale rendering, project-relative paths, truecolor, and spacing.
+  Its header documents the column format.
 - Cases marked `diff` require the two implementations to agree byte for byte,
   escape sequences included. They are skipped, and reported as skipped, when
   the other interpreter is absent.
@@ -313,9 +322,8 @@ Issues are welcome. Two kinds are especially useful:
   `/usage` prints, and the rest reads a payload schema that is not a stability
   contract, so a Claude Code release can break either one silently. Name the
   version you are on.
-- **Anything from Linux or Windows.** Both are unrun (see
-  [Portability](#portability)), so a report is useful even when nothing is
-  broken.
+- **Platform-specific rendering.** Name the terminal, operating system, and
+  whether you used the shell or PowerShell script. Linux remains untested.
 
 ## License
 

@@ -26,6 +26,8 @@
 # payload  JSON, with these expansions:
 #            {{M}}      "model":{"display_name":"Opus 5 (1M context)"}
 #            {{D}}      "workspace":{"current_dir":"/tmp"}
+#            {{R}}      workspace at a temporary Git project root
+#            {{SUB}}    workspace launched in that project's logs/nested folder
 #            {{NOW+n}}  current epoch seconds plus n
 #
 # Lines starting with # and blank lines are ignored.
@@ -34,31 +36,42 @@ model strips 1M suffix	empty	plain	exact	Opus 5 1M | tmp	{{{M}},{{D}}}
 200K suffix	empty	plain	exact	H 200K | tmp	{"model":{"display_name":"H (200K context)"},{{D}}}
 no suffix to strip	empty	plain	exact	Sonnet 5 | tmp	{"model":{"display_name":"Sonnet 5"},{{D}}}
 effort follows model	empty	plain	exact	Opus 5 1M xhigh | tmp	{{{M}},{{D}},"effort":{"level":"xhigh"}}
-ctx used	empty	plain	exact	Opus 5 1M | tmp | ctx:13%	{{{M}},{{D}},"context_window":{"used_percentage":13}}
-ctx zero renders	empty	plain	exact	Opus 5 1M | tmp | ctx:0%	{{{M}},{{D}},"context_window":{"used_percentage":0}}
-ctx hundred	empty	plain	exact	Opus 5 1M | tmp | ctx:100%	{{{M}},{{D}},"context_window":{"used_percentage":100}}
+ctx used	empty	plain	exact	Opus 5 1M | tmp | ctx: 13%	{{{M}},{{D}},"context_window":{"used_percentage":13}}
+ctx zero renders	empty	plain	exact	Opus 5 1M | tmp | ctx: 0%	{{{M}},{{D}},"context_window":{"used_percentage":0}}
+ctx hundred	empty	plain	exact	Opus 5 1M | tmp | ctx: 100%	{{{M}},{{D}},"context_window":{"used_percentage":100}}
 empty payload	empty	plain	exact	EMPTY	{}
 no leading separator	empty	plain	exact	tmp	{{{D}}}
 model only	empty	plain	exact	Sonnet 5	{"model":{"display_name":"Sonnet 5"}}
+git project root	empty	plain	exact	Example Project (main)	{{{R}}}
+git nested launch retains project	empty	plain	exact	Example Project/logs/nested (main)	{{{SUB}}}
+git project root parity	empty	color	diff	-	{{{R}}}
+git nested launch parity	empty	color	diff	-	{{{SUB}}}
+non-git project root	empty	plain	exact	amen23	{"workspace":{"current_dir":"/statusline-fixture/projects/amen23/","project_dir":"/statusline-fixture/projects/amen23/"}}
+non-git project subdirectory	empty	plain	exact	amen23/logs/nested	{"workspace":{"current_dir":"/statusline-fixture/projects/amen23/logs/nested/","project_dir":"/statusline-fixture/projects/amen23/"}}
+project prefix needs a boundary	empty	plain	exact	logs	{"workspace":{"current_dir":"/statusline-fixture/projects/amen23-other/logs","project_dir":"/statusline-fixture/projects/amen23"}}
+Windows project path	empty	plain	exact	amen23/logs	{"workspace":{"current_dir":"C:\\statusline-fixture\\projects\\amen23\\logs\\","project_dir":"C:\\statusline-fixture\\projects\\amen23\\"}}
 
-5h only, no reset	empty	plain	exact	Opus 5 1M | tmp | 5h:12%	{{{M}},{{D}},"rate_limits":{"five_hour":{"used_percentage":12}}}
-7d only, no reset	empty	plain	exact	Opus 5 1M | tmp | 7d:34%	{{{M}},{{D}},"rate_limits":{"seven_day":{"used_percentage":34}}}
-both windows, no resets	empty	plain	exact	Opus 5 1M | tmp | 5h:12% 7d:34%	{{{M}},{{D}},"rate_limits":{"five_hour":{"used_percentage":12},"seven_day":{"used_percentage":34}}}
+5h only, no reset	empty	plain	exact	Opus 5 1M | tmp | 5h: 12%	{{{M}},{{D}},"rate_limits":{"five_hour":{"used_percentage":12}}}
+7d only, no reset	empty	plain	exact	Opus 5 1M | tmp | 7d: 34%	{{{M}},{{D}},"rate_limits":{"seven_day":{"used_percentage":34}}}
+both windows, no resets	empty	plain	exact	Opus 5 1M | tmp | 5h: 12% | 7d: 34%	{{{M}},{{D}},"rate_limits":{"five_hour":{"used_percentage":12},"seven_day":{"used_percentage":34}}}
 null rate_limits	empty	plain	exact	Opus 5 1M | tmp	{{{M}},{{D}},"rate_limits":null}
 
 per-model omitted when cache empty	empty	plain	exact	Opus 5 1M | tmp	{{{M}},{{D}}}
-per-model value renders	populated	plain	exact	Opus 5 1M | tmp | fable:61%	{{{M}},{{D}}}
-per-model appended after 7d	populated	plain	exact	Opus 5 1M | tmp | 7d:34% fable:61%	{{{M}},{{D}},"rate_limits":{"seven_day":{"used_percentage":34}}}
-per-model picks the model in use	multi	plain	exact	Sonnet 5 | tmp | sonnet:34%	{"model":{"display_name":"Sonnet 5"},{{D}}}
-per-model prefers an unscoped window	multi	plain	exact	Opus 5 1M | tmp | fable:61%	{{{M}},{{D}}}
-per-model falls back to the only window	onlywin	plain	exact	Opus 5 1M | tmp | sonnet:34%	{{{M}},{{D}}}
+per-model value renders	populated	plain	exact	Opus 5 1M | tmp | fable: 61%	{{{M}},{{D}}}
+per-model appended after 7d	populated	plain	exact	Opus 5 1M | tmp | 7d: 34% | fable: 61%	{{{M}},{{D}},"rate_limits":{"seven_day":{"used_percentage":34}}}
+per-model picks the model in use	multi	plain	exact	Sonnet 5 | tmp | sonnet: 34%	{"model":{"display_name":"Sonnet 5"},{{D}}}
+per-model prefers an unscoped window	multi	plain	exact	Opus 5 1M | tmp | fable: 61%	{{{M}},{{D}}}
+per-model falls back to the only window	onlywin	plain	exact	Opus 5 1M | tmp | sonnet: 34%	{{{M}},{{D}}}
 per-model ignores a legacy cache	legacy	plain	exact	Opus 5 1M | tmp	{{{M}},{{D}}}
-per-model stale renders gray	stale	color	match	\[90mfable:.\[0m.\[90m61%	{{{M}},{{D}}}
+per-model stale renders gray	stale	color	match	\[38;2;179;189;204mfable: .\[0m.\[38;2;179;189;204m61%	{{{M}},{{D}}}
 
-prompt cache warm 1h	empty	plain	match	cache:(59|60):[0-9][0-9]$	{{{M}},{{D}},"prompt_cache":{"warm":true,"ttl":"1h","expires_at":{{NOW+3600}}}}
+prompt cache warm 1h	empty	plain	match	cache: (59|60):[0-9][0-9]$	{{{M}},{{D}},"prompt_cache":{"warm":true,"ttl":"1h","expires_at":{{NOW+3600}}}}
 prompt cache 5m ttl omitted	empty	plain	exact	Opus 5 1M | tmp	{{{M}},{{D}},"prompt_cache":{"warm":true,"ttl":"5m","expires_at":{{NOW+200}}}}
 prompt cache cold omitted	empty	plain	exact	Opus 5 1M | tmp	{{{M}},{{D}},"prompt_cache":{"warm":false,"ttl":"1h","expires_at":{{NOW+200}}}}
-prompt cache expired floors	empty	plain	exact	Opus 5 1M | tmp | cache:00:00	{{{M}},{{D}},"prompt_cache":{"warm":true,"ttl":"1h","expires_at":1}}
+prompt cache expired floors	empty	plain	exact	Opus 5 1M | tmp | cache: 00:00	{{{M}},{{D}},"prompt_cache":{"warm":true,"ttl":"1h","expires_at":1}}
+healthy cache uses truecolor green	empty	color	match	cache: .*\[38;2;126;231;135m(59|60):[0-9][0-9]	{"prompt_cache":{"warm":true,"ttl":"1h","expires_at":{{NOW+3600}}}}
+critical usage uses truecolor red	empty	color	match	7d: .*\[38;2;255;123;114m95%	{"rate_limits":{"seven_day":{"used_percentage":95}}}
+weekday reset spacing	empty	plain	match	^7d: 95% @ [A-Z][a-z][a-z] [0-9][0-9]:[0-9][0-9]$	{"rate_limits":{"seven_day":{"used_percentage":95,"resets_at":{{NOW+320000}}}}}
 
 rounding 0.5	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":0.5}}
 rounding 1.5	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":1.5}}

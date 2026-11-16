@@ -79,6 +79,7 @@ function Get-Field {
 
 $model   = [string](Get-Field $p 'model', 'display_name')
 $dir     = [string](Get-Field $p 'workspace', 'current_dir')
+$projectDir = [string](Get-Field $p 'workspace', 'project_dir')
 $ctx     = Get-Field $p 'context_window', 'used_percentage'
 $five    = Get-Field $p 'rate_limits', 'five_hour', 'used_percentage'
 $fiveR   = Get-Field $p 'rate_limits', 'five_hour', 'resets_at'
@@ -98,16 +99,40 @@ if ($dir -and (Get-Command git -ErrorAction SilentlyContinue)) {
   $branch = $branch.Trim()
 }
 
+function Get-DirectoryLabel {
+  param([string]$Directory, [string]$ProjectDirectory)
+  # Git supplies the relative path even when the session started in a subfolder
+  # or the working directory was reached through a symlink.
+  if (Get-Command git -ErrorAction SilentlyContinue) {
+    $gitPath = @(& git -C $Directory --no-optional-locks rev-parse --show-toplevel --show-prefix 2>$null)
+    if ($LASTEXITCODE -eq 0 -and $gitPath.Count -gt 0) {
+      $label = ($gitPath[0].TrimEnd('/') -split '/')[-1]
+      if ($gitPath.Count -gt 1 -and $gitPath[1]) { $label += '/' + $gitPath[1].TrimEnd('/') }
+      return $label
+    }
+  }
+  # Outside Git, retain the launch directory when it contains the current one.
+  $current = $Directory.Replace('\', '/').TrimEnd('/')
+  $project = $ProjectDirectory.Replace('\', '/').TrimEnd('/')
+  $comparison = if ($IsWindows) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+  if ($project -and ($current.Equals($project, $comparison) -or $current.StartsWith("$project/", $comparison))) {
+    return ($project -split '/')[-1] + $current.Substring($project.Length)
+  }
+  if (-not $current) { return '/' }
+  return ($current -split '/')[-1]
+}
+
 # ── Colors ─────────────────────────────────────────────────────────────────
-# Labels, separators and reset times stay gray so the eye lands on the values.
-# Green, yellow and red mark threshold state and nothing else, so a warm color
-# anywhere on the line means some number is worth reading.
+# Fixed light colors remain readable on dark backgrounds across terminal themes.
+# Labels and reset times stay readable; only separators use the subdued gray.
 if ($env:NO_COLOR -or $env:TERM -eq 'dumb') {
-  $Z = $BD = $GY = $MG = $CY = $GN = $YL = $RD = ''
+  $Z = $BD = $FG = $GY = $DIM = $MG = $CY = $GN = $YL = $RD = ''
 } else {
   $e = [char]27
-  $Z = "$e[0m"; $BD = "$e[1m"; $GY = "$e[90m"; $MG = "$e[35m"; $CY = "$e[36m"
-  $GN = "$e[32m"; $YL = "$e[33m"; $RD = "$e[31m"
+  $Z = "$e[0m"; $BD = "$e[1m"; $FG = "$e[38;2;230;237;243m"
+  $GY = "$e[38;2;179;189;204m"; $DIM = "$e[38;2;110;118;129m"
+  $MG = "$e[38;2;240;171;252m"; $CY = "$e[38;2;125;211;252m"
+  $GN = "$e[38;2;126;231;135m"; $YL = "$e[38;2;242;204;96m"; $RD = "$e[38;2;255;123;114m"
 }
 
 # [math]::Round defaults to half to even, which is what C's printf "%.0f" does
@@ -131,7 +156,7 @@ function Get-ResetAt {
   catch { return '' }
   $inv = [System.Globalization.CultureInfo]::InvariantCulture
   if ($t.Date -eq (Get-Date).Date) { return $t.ToString('HH:mm', $inv) }
-  return $t.ToString('ddd', $inv) + $t.ToString('HH:mm', $inv)
+  return $t.ToString('ddd HH:mm', $inv)
 }
 
 # ── Per-model weekly window ────────────────────────────────────────────────
@@ -202,7 +227,7 @@ if (Test-Path -LiteralPath $MuCache -PathType Leaf) {
 # ── Assembly ───────────────────────────────────────────────────────────────
 # The separator is supplied only once something precedes it, so a missing
 # leading segment does not leave the line starting with "|".
-$BAR = " $GY|$Z "
+$BAR = " $DIM|$Z "
 $out = ''
 function Add-Segment {
   param([string]$Text, [string]$Separator)
@@ -210,35 +235,35 @@ function Add-Segment {
   else { $script:out = $script:out + $Separator + $Text }
 }
 
-if ($model)  { Add-Segment "$BD$model$Z" $BAR }
+if ($model)  { Add-Segment "$BD$FG$model$Z" $BAR }
 if ($effort) { Add-Segment "$MG$effort$Z" ' ' }
-if ($dir)    { Add-Segment "$CY$(Split-Path -Leaf $dir)$Z" $BAR }
+if ($dir)    { Add-Segment "$CY$(Get-DirectoryLabel $dir $projectDir)$Z" $BAR }
 if ($branch) { Add-Segment "$GY($branch)$Z" ' ' }
 
 if ($null -ne $ctx) {
   $n = ConvertTo-Pct $ctx
-  Add-Segment "${GY}ctx:$Z$(Get-HiColor $n 50 80)$n%$Z" $BAR
+  Add-Segment "${GY}ctx: $Z$(Get-HiColor $n 50 80)$n%$Z" $BAR
 }
 
 $rl = ''
 if ($null -ne $five) {
   $n = ConvertTo-Pct $five
-  $rl = "${GY}5h:$Z$(Get-HiColor $n 50 80)$n%$Z"
+  $rl = "${GY}5h: $Z$(Get-HiColor $n 50 80)$n%$Z"
   $r = Get-ResetAt $fiveR
-  if ($r) { $rl += "${GY}@$r$Z" }
+  if ($r) { $rl += "${GY} @ $r$Z" }
 }
 if ($null -ne $week) {
-  if ($rl) { $rl += ' ' }
+  if ($rl) { $rl += $BAR }
   $n = ConvertTo-Pct $week
-  $rl += "${GY}7d:$Z$(Get-HiColor $n 50 80)$n%$Z"
+  $rl += "${GY}7d: $Z$(Get-HiColor $n 50 80)$n%$Z"
   $r = Get-ResetAt $weekR
-  if ($r) { $rl += "${GY}@$r$Z" }
+  if ($r) { $rl += "${GY} @ $r$Z" }
 }
 if ($null -ne $muPct -and $muPct -match '^\d+$') {
-  if ($rl) { $rl += ' ' }
+  if ($rl) { $rl += $BAR }
   $lbl = $muLabel.ToLowerInvariant()
   $c = if ($muStale) { $GY } else { Get-HiColor ([int]$muPct) 50 80 }
-  $rl += "${GY}${lbl}:$Z$c$muPct%$Z"
+  $rl += "${GY}${lbl}: $Z$c$muPct%$Z"
 }
 if ($rl) { Add-Segment $rl $BAR }
 
@@ -249,7 +274,7 @@ if ($warm -eq $true -and $ttl -eq '1h' -and $null -ne $expires) {
   if ($remain -lt 0) { $remain = 0 }
   $m = [int][math]::Floor($remain / 60)
   $clock = '{0:D2}:{1:D2}' -f $m, [int]($remain % 60)
-  Add-Segment "${GY}cache:$Z$(Get-LoColor $m 15 5)$clock$Z" $BAR
+  Add-Segment "${GY}cache: $Z$(Get-LoColor $m 15 5)$clock$Z" $BAR
 }
 
 [Console]::Out.Write($out)

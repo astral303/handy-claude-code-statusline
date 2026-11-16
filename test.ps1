@@ -42,7 +42,7 @@ Current week (all models): 34% used - resets Sep 8 at 12:59pm (America/New_York)
 Current week (Fable): 61% used - resets Sep 8 at 12:59pm (America/New_York)
 '@
 if ($IsWindows) {
-  $lines = ($stubBody -split "`n" | ForEach-Object { "echo $($_.TrimEnd())" }) -join "`r`n"
+  $lines = ($stubBody -split "`n" | ForEach-Object { "echo $($_.TrimEnd().Replace('%', '%%'))" }) -join "`r`n"
   Set-Content -Path (Join-Path $binDir 'claude.cmd') -Value "@echo off`r`nif defined CLAUDE_STUB_FAIL exit /b 1`r`n$lines" -Encoding ascii
 } else {
   # Not $sh: PowerShell variable names are case-insensitive, so that would
@@ -58,6 +58,13 @@ $HaveSh = ($null -ne $shCmd) -and (Test-Path -LiteralPath $SH)
 
 $M = '"model":{"display_name":"Opus 5 (1M context)"}'
 $D = '"workspace":{"current_dir":"/tmp"}'
+$repoDir = Join-Path $Work 'Example Project'
+& git init --quiet --initial-branch=main $repoDir
+if ($LASTEXITCODE -ne 0) { throw 'could not create the test repository' }
+$nestedDir = Join-Path $repoDir 'logs/nested'
+New-Item -ItemType Directory -Path $nestedDir -Force | Out-Null
+$R = '"workspace":' + (@{ current_dir = $repoDir; project_dir = $repoDir } | ConvertTo-Json -Compress)
+$SUB = '"workspace":' + (@{ current_dir = $nestedDir; project_dir = $nestedDir } | ConvertTo-Json -Compress)
 
 function Write-Ok   { param($Name) $script:pass++; Write-Host "  ok   $Name" }
 function Write-Bad  { param($Name, [string[]]$Detail) $script:fail++; Write-Host "  FAIL $Name"; foreach ($d in $Detail) { Write-Host "       $d" } }
@@ -66,7 +73,7 @@ function Write-Skip { param($Name, $Why) $script:skip++; Write-Host "  skip $Nam
 function Expand-Payload {
   param([string]$Text)
   $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-  $Text = $Text.Replace('{{M}}', $M).Replace('{{D}}', $D)
+  $Text = $Text.Replace('{{M}}', $M).Replace('{{D}}', $D).Replace('{{R}}', $R).Replace('{{SUB}}', $SUB)
   [regex]::Replace($Text, '\{\{NOW\+(\d+)\}\}', { param($m) [string]($now + [int64]$m.Groups[1].Value) })
 }
 

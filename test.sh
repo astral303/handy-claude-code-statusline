@@ -49,6 +49,11 @@ command -v pwsh >/dev/null 2>&1 && [ -f "$PS" ] && HAVE_PS=yes
 
 M='"model":{"display_name":"Opus 5 (1M context)"}'
 D='"workspace":{"current_dir":"/tmp"}'
+repo_dir="$WORK/Example Project"
+git init --quiet --initial-branch=main "$repo_dir" || exit 1
+mkdir -p "$repo_dir/logs/nested"
+R=$(jq -nc --arg dir "$repo_dir" '{workspace: {current_dir: $dir, project_dir: $dir}}' | sed 's/^{//; s/}$//')
+SUB=$(jq -nc --arg dir "$repo_dir/logs/nested" '{workspace: {current_dir: $dir, project_dir: $dir}}' | sed 's/^{//; s/}$//')
 
 ok()   { pass=$((pass + 1)); printf '  ok   %s\n' "$1"; }
 bad()  { fail=$((fail + 1)); printf '  FAIL %s\n' "$1"; shift; [ $# -gt 0 ] && printf '       %s\n' "$@"; return 0; }
@@ -57,11 +62,12 @@ skipped() { skip=$((skip + 1)); printf '  skip %s (%s)\n' "$1" "$2"; }
 minutes_ago() { date -v-"$1"M +%Y%m%d%H%M 2>/dev/null || date -d "$1 minutes ago" +%Y%m%d%H%M; }
 slug() { echo "$1" | tr -c 'a-zA-Z0-9' '_'; }
 
-# Expands {{M}}, {{D}} and {{NOW+n}} in a payload.
+# Expands workspace fixtures and timestamps in a payload.
 expand() {
   now=$(date -u +%s)
-  awk -v m="$M" -v d="$D" -v now="$now" '{
+  awk -v m="$M" -v d="$D" -v r="$R" -v subdir="$SUB" -v now="$now" '{
     gsub(/\{\{M\}\}/, m); gsub(/\{\{D\}\}/, d)
+    gsub(/\{\{R\}\}/, r); gsub(/\{\{SUB\}\}/, subdir)
     while (match($0, /\{\{NOW\+[0-9]+\}\}/)) {
       s = substr($0, RSTART, RLENGTH)
       n = substr(s, 7, length(s) - 8)
