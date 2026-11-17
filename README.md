@@ -7,7 +7,7 @@ prompt-cache countdown.
 POSIX `sh` and PowerShell 7, no runtime beyond `jq`.
 
 ```
-Opus 5 1M xhigh | rearview/src (main) | ctx: 40% | 5h: 6% @ 21:40 | 7d: 34% @ Tue 13:00 | fable: 61% | cache: 56:39
+Opus 5 1M xhigh | rearview/src (main) | ctx: 343k/1M (34%) | 5h: 6% @ 21:40 | 7d: 34% @ Tue 13:00 | fable: 61% | cache: 56:39
 ```
 
 Missing from the status line payload: the per-model weekly window (`fable: 61%`).
@@ -35,11 +35,11 @@ credential read (see [Per-model weekly window](#per-model-weekly-window)).
 3. Confirm it renders:
 
    ```sh
-   echo '{"model":{"display_name":"Opus 5 (1M context)"},"workspace":{"current_dir":"'"$PWD"'"},"context_window":{"used_percentage":13}}' \
+   echo '{"model":{"display_name":"Opus 5 (1M context)"},"workspace":{"current_dir":"'"$PWD"'"},"context_window":{"used_percentage":34.3,"context_window_size":1000000,"current_usage":{"input_tokens":343000}}}' \
      | sh ~/.claude/statusline-command.sh
    ```
 
-   Expected: `Opus 5 1M | <project>/<subdir> (<branch>) | ctx: 13%`.
+   Expected: `Opus 5 1M | <project>/<subdir> (<branch>) | ctx: 343k/1M (34%)`.
 
 The prompt-cache countdown needs `refreshInterval` to be useful. The setting
 re-runs the command every N seconds on top of Claude Code's event-driven
@@ -54,7 +54,7 @@ render.
 | `xhigh` | `effort.level` | field absent |
 | `rearview/src` | Git root name and relative current directory; falls back to `workspace.project_dir` | `workspace.current_dir` absent |
 | `(main)` | `git branch --show-current`, read live | not a git repository |
-| `ctx: 40%` | `context_window.used_percentage` | field absent |
+| `ctx: 343k/1M (34%)` | `context_window.current_usage`, `context_window_size`, and `used_percentage` | percentage absent |
 | `5h: 6% @ 21:40` | `rate_limits.five_hour` | field absent |
 | `7d: 34% @ Tue 13:00` | `rate_limits.seven_day` | field absent |
 | `fable: 61%` | `claude -p "/usage"`, cached | no cached value |
@@ -154,7 +154,7 @@ Renders are read-stale:
 
 ### One jq pass, unit-separated
 
-- All twelve payload fields are read in one `jq` call. At `refreshInterval: 10`
+- All payload fields are read in one `jq` call. At `refreshInterval: 10`
   the script runs six times a minute, and each `jq` spawn costs more than the
   parse.
 - Fields are joined with `\u001f` (unit separator), not a tab. `read` collapses
@@ -167,6 +167,23 @@ Renders are read-stale:
 - `ctx`, `5h`, `7d` and the per-model window then share one direction and one
   threshold row. A remaining percentage among used percentages puts two
   opposite scales on one line.
+
+### Current context tokens and capacity
+
+`ctx: 343k/1M (34%)` shows current input tokens, the model's full context
+window, and the reported used percentage. The count adds `input_tokens`,
+`cache_creation_input_tokens`, and `cache_read_input_tokens` from
+`context_window.current_usage`. Output tokens are excluded to match the
+percentage's accounting.
+
+Counts use decimal `k` and `M`, rounded down to whole thousands or tenths of a
+million. The token pair stays light gray and the percentage carries the
+threshold color. If current input tokens or a positive window size are
+unavailable, the segment falls back to `ctx: 34%`.
+
+The denominator is `context_window.context_window_size`, not the
+`/autocompact` setting. Both the percentage and the token pair refer to the
+full model window.
 
 ### Prompt-cache countdown from the payload
 
@@ -235,7 +252,8 @@ there is covered on both platforms. Each exits non-zero on failure.
 
 - The shared corpus covers segment rendering and omission, rate-limit
   windows, the per-model window, prompt-cache states, rounding at every
-  midpoint, stale rendering, project-relative paths, truecolor, and spacing.
+  midpoint, current context tokens and capacity, stale rendering,
+  project-relative paths, truecolor, and spacing.
   Its header documents the column format.
 - Cases marked `diff` require the two implementations to agree byte for byte,
   escape sequences included. They are skipped, and reported as skipped, when

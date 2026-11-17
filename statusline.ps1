@@ -83,6 +83,16 @@ $model   = [string](Get-Field $p 'model', 'display_name')
 $dir     = [string](Get-Field $p 'workspace', 'current_dir')
 $projectDir = [string](Get-Field $p 'workspace', 'project_dir')
 $ctx     = Get-Field $p 'context_window', 'used_percentage'
+$ctxSize = Get-Field $p 'context_window', 'context_window_size'
+$ctxInput = Get-Field $p 'context_window', 'current_usage', 'input_tokens'
+$ctxTokens = $null
+if ($null -ne $ctxInput) {
+  # Match used_percentage: count all current input, including cache reads/writes,
+  # without adding output tokens or estimating from the rounded percentage.
+  $ctxTokens = [long]$ctxInput +
+    [long](Get-Field $p 'context_window', 'current_usage', 'cache_creation_input_tokens') +
+    [long](Get-Field $p 'context_window', 'current_usage', 'cache_read_input_tokens')
+}
 $five    = Get-Field $p 'rate_limits', 'five_hour', 'used_percentage'
 $fiveR   = Get-Field $p 'rate_limits', 'five_hour', 'resets_at'
 $week    = Get-Field $p 'rate_limits', 'seven_day', 'used_percentage'
@@ -141,6 +151,14 @@ if ($env:NO_COLOR -or $env:TERM -eq 'dumb') {
 # under the default IEEE rounding mode, so 12.5 gives 12 in both. Forcing
 # MidpointRounding.AwayFromZero here would diverge from statusline.sh.
 function ConvertTo-Pct { param($Value) [int][math]::Round([double]$Value) }
+
+function Format-TokenCount {
+  param([long]$Tokens)
+  $inv = [System.Globalization.CultureInfo]::InvariantCulture
+  if ($Tokens -ge 1000000) { return ([math]::Floor($Tokens / 100000) / 10).ToString('0.#', $inv) + 'M' }
+  if ($Tokens -ge 1000) { return [math]::Floor($Tokens / 1000).ToString('0', $inv) + 'k' }
+  return $Tokens.ToString($inv)
+}
 
 # Threshold color where a smaller number is worse (time left on the cache).
 function Get-LoColor { param([int]$N, [int]$Good, [int]$Warn)
@@ -244,7 +262,11 @@ if ($branch) { Add-Segment "$GY($branch)$Z" ' ' }
 
 if ($null -ne $ctx) {
   $n = ConvertTo-Pct $ctx
-  Add-Segment "${GY}ctx: $Z$(Get-HiColor $n 50 80)$n%$Z" $BAR
+  $contextValue = "$(Get-HiColor $n 50 80)$n%$Z"
+  if ($null -ne $ctxTokens -and $ctxTokens -ge 0 -and $ctxSize -gt 0) {
+    $contextValue = "${GY}$(Format-TokenCount $ctxTokens)/$(Format-TokenCount $ctxSize) ($Z$contextValue${GY})$Z"
+  }
+  Add-Segment "${GY}ctx: $Z$contextValue" $BAR
 }
 
 $rl = ''

@@ -11,10 +11,14 @@ now=$(date -u +%s)
 # Unit separator rather than tab: read collapses runs of IFS whitespace, which
 # would shift every field after an empty one.
 US=$(printf '\037')
-IFS="$US" read -r model dir project_dir ctx five five_r week week_r effort warm ttl expires <<EOF
+IFS="$US" read -r model dir project_dir ctx ctx_size ctx_tokens five five_r week week_r effort warm ttl expires <<EOF
 $(printf '%s' "$input" | jq -r '[
   .model.display_name, .workspace.current_dir, .workspace.project_dir,
   .context_window.used_percentage,
+  .context_window.context_window_size,
+  (.context_window.current_usage | if .input_tokens != null then
+    .input_tokens + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)
+    else null end),
   .rate_limits.five_hour.used_percentage, .rate_limits.five_hour.resets_at,
   .rate_limits.seven_day.used_percentage, .rate_limits.seven_day.resets_at,
   .effort.level, .prompt_cache.warm, .prompt_cache.ttl, .prompt_cache.expires_at
@@ -64,6 +68,14 @@ fi
 lo() { [ "$1" -ge "$2" ] && printf %s "$GN" || { [ "$1" -ge "$3" ] && printf %s "$YL" || printf %s "$RD"; }; }
 # Threshold color where a larger number is worse (consumed percentage).
 hi() { [ "$1" -lt "$2" ] && printf %s "$GN" || { [ "$1" -lt "$3" ] && printf %s "$YL" || printf %s "$RD"; }; }
+
+format_tokens() {
+  LC_ALL=C awk -v n="$1" 'BEGIN {
+    if (n >= 1000000) printf "%gM", int(n / 100000) / 10
+    else if (n >= 1000) printf "%dk", int(n / 1000)
+    else printf "%d", n
+  }'
+}
 
 # Local time from an epoch, BSD date first and GNU date as the fallback.
 lt() { date -r "$1" +"$2" 2>/dev/null || date -d "@$1" +"$2" 2>/dev/null; }
@@ -167,7 +179,11 @@ BAR=" $DIM|$Z "
 
 if [ -n "$ctx" ]; then
   n=$(printf '%.0f' "$ctx")
-  out="${out:+$out$BAR}${GY}ctx: $Z$(hi "$n" 50 80)$n%$Z"
+  context_value="$(hi "$n" 50 80)$n%$Z"
+  if [ -n "$ctx_tokens" ] && [ "$ctx_tokens" -ge 0 ] && [ "${ctx_size:-0}" -gt 0 ]; then
+    context_value="${GY}$(format_tokens "$ctx_tokens")/$(format_tokens "$ctx_size") ($Z$context_value${GY})$Z"
+  fi
+  out="${out:+$out$BAR}${GY}ctx: $Z$context_value"
 fi
 
 rl=""

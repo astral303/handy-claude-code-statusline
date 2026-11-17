@@ -39,6 +39,16 @@ effort follows model	empty	plain	exact	Opus 5 1M xhigh | tmp	{{{M}},{{D}},"effor
 ctx used	empty	plain	exact	Opus 5 1M | tmp | ctx: 13%	{{{M}},{{D}},"context_window":{"used_percentage":13}}
 ctx zero renders	empty	plain	exact	Opus 5 1M | tmp | ctx: 0%	{{{M}},{{D}},"context_window":{"used_percentage":0}}
 ctx hundred	empty	plain	exact	Opus 5 1M | tmp | ctx: 100%	{{{M}},{{D}},"context_window":{"used_percentage":100}}
+ctx counts current input including cache	empty	plain	exact	ctx: 343k/1M (34%)	{"context_window":{"used_percentage":34.3,"context_window_size":1000000,"total_input_tokens":9000000,"current_usage":{"input_tokens":1000,"cache_creation_input_tokens":42000,"cache_read_input_tokens":300000,"output_tokens":19000}}}
+ctx uses reported window size	empty	plain	exact	ctx: 87k/200k (44%)	{"context_window":{"used_percentage":43.5,"context_window_size":200000,"current_usage":{"input_tokens":87000}}}
+ctx zero token count	empty	plain	exact	ctx: 0/1M (0%)	{"context_window":{"used_percentage":0,"context_window_size":1000000,"current_usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+ctx small token count	empty	plain	exact	ctx: 999/1M (0%)	{"context_window":{"used_percentage":0.1,"context_window_size":1000000,"current_usage":{"input_tokens":999}}}
+ctx abbreviates without rounding up	empty	plain	exact	ctx: 999k/1M (100%)	{"context_window":{"used_percentage":99.9,"context_window_size":1000000,"current_usage":{"input_tokens":999999}}}
+ctx fractional millions	empty	plain	exact	ctx: 1.2M/2M (62%)	{"context_window":{"used_percentage":62.5,"context_window_size":2000000,"current_usage":{"input_tokens":1250000}}}
+ctx missing usage keeps percentage	empty	plain	exact	ctx: 34%	{"context_window":{"used_percentage":34,"context_window_size":1000000,"current_usage":null}}
+ctx missing window keeps percentage	empty	plain	exact	ctx: 34%	{"context_window":{"used_percentage":34,"current_usage":{"input_tokens":343000}}}
+ctx zero window keeps percentage	empty	plain	exact	ctx: 34%	{"context_window":{"used_percentage":34,"context_window_size":0,"current_usage":{"input_tokens":343000}}}
+ctx fractional millions parity	empty	color	diff	-	{"context_window":{"used_percentage":62.5,"context_window_size":2000000,"current_usage":{"input_tokens":1250000}}}
 empty payload	empty	plain	exact	EMPTY	{}
 no leading separator	empty	plain	exact	tmp	{{{D}}}
 model only	empty	plain	exact	Sonnet 5	{"model":{"display_name":"Sonnet 5"}}
@@ -91,4 +101,4 @@ yellow band	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percenta
 red band	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":92},"rate_limits":{"five_hour":{"used_percentage":91,"resets_at":{{NOW+7200}}}}}
 weekday reset	populated	color	diff	-	{{{M}},{{D}},"rate_limits":{"seven_day":{"used_percentage":34,"resets_at":{{NOW+320000}}}}}
 effort colored	populated	color	diff	-	{{{M}},{{D}},"effort":{"level":"xhigh"}}
-full line	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":13},"effort":{"level":"xhigh"},"rate_limits":{"five_hour":{"used_percentage":12,"resets_at":{{NOW+7200}}},"seven_day":{"used_percentage":34,"resets_at":{{NOW+320000}}}},"prompt_cache":{"warm":true,"ttl":"1h","expires_at":1}}
+full line	populated	color	diff	-	{{{M}},{{D}},"context_window":{"used_percentage":13,"context_window_size":1000000,"current_usage":{"input_tokens":1000,"cache_creation_input_tokens":9000,"cache_read_input_tokens":120000,"output_tokens":5000}},"effort":{"level":"xhigh"},"rate_limits":{"five_hour":{"used_percentage":12,"resets_at":{{NOW+7200}}},"seven_day":{"used_percentage":34,"resets_at":{{NOW+320000}}}},"prompt_cache":{"warm":true,"ttl":"1h","expires_at":1}}
